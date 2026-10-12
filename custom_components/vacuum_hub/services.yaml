@@ -1,0 +1,12 @@
+clean_rooms:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    rooms:
+      required: true
+      example: "[16, 17]"
+      selector:
+        object:

@@ -1,0 +1,15 @@
+{
+  "domain": "vacuum_hub",
+  "name": "Vacuum Hub",
+  "after_dependencies": ["xiaomi_cloud_map_extractor", "xiaomi_home"],
+  "codeowners": ["@dmdias"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http"],
+  "documentation": "https://github.com/dmdias/ha-vacuum-hub",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/dmdias/ha-vacuum-hub/issues",
+  "requirements": ["python-miio>=0.5.12"],
+  "single_config_entry": true,
+  "version": "0.4.0"
+}

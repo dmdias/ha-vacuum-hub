@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vacuum Hub",
+        "description": "Adds the Vacuum Hub card to every dashboard and the `vacuum_hub.clean_rooms` action. Room cleaning reads each vacuum's host and token from Xiaomi Cloud Map Extractor (v3)."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Vacuum Hub is already set up."
+    }
+  },
+  "services": {
+    "clean_rooms": {
+      "name": "Clean rooms",
+      "description": "Cleans the selected rooms over the local network (Viomi and Roborock vacuums).",
+      "fields": {
+        "entity_id": {
+          "name": "Vacuum",
+          "description": "Vacuum entity to clean with."
+        },
+        "rooms": {
+          "name": "Rooms",
+          "description": "Room ids from the map, e.g. [16, 17]."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,84 @@
+<!doctype html>
+<!--
+  Preview of vacuum-hub-card with a mocked Home Assistant, shaped like two
+  Xiaomi Home vacuums (one with a room-cleaning action, one with mop buttons).
+    preview/index.html?index=1   (vacuum to show)  &map=1 (with a mocked map)  &lang=en
+-->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Vacuum Hub card preview</title>
+  <style> body { margin:0; background:#05070c; padding:20px; } #host { margin:auto; } </style>
+</head>
+<body>
+  <div id="host"></div>
+  <script src="../custom_components/vacuum_hub/frontend/vacuum-hub-card.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const st = (state, attributes = {}) => ({ state, attributes });
+    const states = {
+      "vacuum.robot_downstairs": st("cleaning", { friendly_name: "Aspirador Baixo", supported_features: 8192 | 8 | 16 | 512 }),
+      "select.robot_downstairs_mode": st("Full Speed", { friendly_name: "Aspirador Cozinha  Robot Cleaner Mode", options: ["Silent", "Standard", "Medium", "Full Speed"] }),
+      "notify.robot_downstairs_start_room_sweep": st("unknown", { friendly_name: "Aspirador Cozinha  Start Room Sweep" }),
+      "sensor.robot_downstairs_battery_level": st("82"),
+      "vacuum.robot_upstairs": st("docked", { friendly_name: "Aspirador Cima", supported_features: 8192 | 4 | 8 | 16 | 512 }),
+      "select.robot_upstairs_mode": st("Strong", { friendly_name: "Mi Robot Vacuum-Mop P  Vacuum Mode", options: ["Silent", "Standard", "Medium", "Strong"] }),
+      "button.robot_upstairs_start_sweep_mop": st("unknown", { friendly_name: "Mi Robot Vacuum-Mop P  Start Sweep Mop" }),
+      "button.robot_upstairs_start_mop": st("unknown", { friendly_name: "Mi Robot Vacuum-Mop P  Start Mop" }),
+      "sensor.robot_upstairs_battery_level": st("100"),
+    };
+    if (params.get("map")) {
+      // 400x300 map, vacuum coordinates in mm with 25000,25000 at the image centre (20 mm per pixel)
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'><rect width='400' height='300' fill='#1b2130'/>
+        <path d='M60 50h140v90H60z M200 50h140v120H200z M60 140h140v110H60z M200 170h140v80H200z' fill='#2e5a86' stroke='#9fb6d0' stroke-width='3'/>
+        <circle cx='120' cy='200' r='7' fill='#5fd3a8'/></svg>`;
+      states["camera.robot_downstairs_map"] = st("idle", {
+        entity_picture: "data:image/svg+xml;utf8," + encodeURIComponent(svg),
+        calibration_points: [
+          { vacuum: { x: 25000, y: 25000 }, map: { x: 200, y: 150 } },
+          { vacuum: { x: 27000, y: 25000 }, map: { x: 300, y: 150 } },
+          { vacuum: { x: 25000, y: 27000 }, map: { x: 200, y: 50 } },
+        ],
+        rooms: {
+          16: { x0: 22000, y0: 25200, x1: 25000, y1: 27000, name: "Cozinha" },
+          17: { x0: 25000, y0: 24600, x1: 28000, y1: 27000, name: "Sala" },
+          18: { x0: 22000, y0: 23000, x1: 25000, y1: 25200, name: "Escritório" },
+          19: { x0: 25000, y0: 23000, x1: 28000, y1: 24600, name: "Hall" },
+        },
+      });
+    }
+    const en = params.get("lang") === "en";
+    if (en) {
+      states["vacuum.robot_downstairs"].attributes.friendly_name = "Downstairs";
+      states["vacuum.robot_upstairs"].attributes.friendly_name = "Upstairs";
+      const r = states["camera.robot_downstairs_map"]?.attributes.rooms;
+      if (r) Object.assign(r, { 16: { ...r[16], name: "Kitchen" }, 17: { ...r[17], name: "Living room" }, 18: { ...r[18], name: "Office" }, 19: { ...r[19], name: "Hall" } });
+    }
+    const registry = Object.keys(states).map((entity_id) => ({ entity_id, device_id: entity_id.includes("downstairs") ? "d1" : "d2" }));
+    const hass = {
+      states,
+      // Vacuum Hub integration loaded: room cleaning over the local network
+      services: { vacuum_hub: { clean_rooms: {} } },
+      devices: { d1: { model: "roborock.vacuum.m1s" }, d2: { model: "viomi.vacuum.v8" } },
+      locale: { language: params.get("lang") || "pt" },
+      callWS: async (msg) => (msg.type === "config/entity_registry/list" ? registry : null),
+      callService: async (domain, service, data) => console.log("service", domain, service, JSON.stringify(data)),
+    };
+    const host = document.getElementById("host");
+    host.style.width = `${params.get("width") || 640}px`;
+    const card = document.createElement("vacuum-hub-card");
+    const config = { vacuums: [
+      { entity: "vacuum.robot_downstairs", ...(params.get("map") ? { map: "camera.robot_downstairs_map" } : {}) },
+      "vacuum.robot_upstairs",
+    ] };
+    card.setConfig(config);
+    host.appendChild(card);
+    card.hass = hass;
+    setTimeout(() => {
+      card._index = Number(params.get("index") || 0);
+      if (params.get("select")) params.get("select").split(",").forEach((r) => card._selected.add(r));
+      card._render();
+    }, 60);
+  </script>
+</body>
+</html>

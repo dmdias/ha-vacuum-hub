@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vacuum Hub",
+        "description": "Adiciona o card Vacuum Hub a todos os painéis e a ação `vacuum_hub.clean_rooms`. A limpeza por quartos lê o IP e o token de cada aspirador do Xiaomi Cloud Map Extractor (v3)."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "O Vacuum Hub já está configurado."
+    }
+  },
+  "services": {
+    "clean_rooms": {
+      "name": "Limpar quartos",
+      "description": "Limpa os quartos escolhidos pela rede local (aspiradores Viomi e Roborock).",
+      "fields": {
+        "entity_id": {
+          "name": "Aspirador",
+          "description": "Entidade do aspirador a usar."
+        },
+        "rooms": {
+          "name": "Quartos",
+          "description": "IDs dos quartos no mapa, por exemplo [16, 17]."
+        }
+      }
+    }
+  }
+}
