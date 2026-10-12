@@ -15,6 +15,7 @@
  *     - entity: vacuum.robot_1
  *       name: Downstairs           # optional
  *       map: image.robot_1_map     # optional, Xiaomi Cloud Map Extractor image (v3) or camera (v2)
+ *       map_zoom: true             # optional, zoom on the drawn area of the map (default)
  *       rooms:                     # optional, when the map has no room names
  *         16: Kitchen
  *         17: Living room
@@ -24,7 +25,7 @@
  * battery sensor) are found through the device of each vacuum.
  */
 
-const CARD_VERSION = "0.4.0";
+const CARD_VERSION = "0.5.0";
 const HUB_MODELS = /^(viomi|roborock|rockrobo)\.vacuum\./;
 
 // VacuumEntityFeature bits
@@ -72,6 +73,8 @@ class VacuumHubCard extends HTMLElement {
     this._selected = new Set();
     this._signature = "";
     this._mapSize = {};
+    this._mapContent = {}; // content box of each map image, from a pixel scan
+    this._scanned = {};
   }
 
   static getStubConfig() {
@@ -306,7 +309,13 @@ class VacuumHubCard extends HTMLElement {
       // time so the browser fetches the new image instead of its cached copy
       const pic = map.attributes.entity_picture;
       const src = pic.startsWith("data:") ? pic : `${pic}${pic.includes("?") ? "&" : "?"}t=${encodeURIComponent(map.last_updated || map.state || "")}`;
-      mapHtml = `<div class="map"><img src="${esc(src)}" alt="${esc(t.map)}" data-map="${esc(dev.map)}">${canRooms ? this._roomOverlay(map, rooms, dev.map) : ""}</div>`;
+      const inner = `<img src="${esc(src)}" alt="${esc(t.map)}" data-map="${esc(dev.map)}">${canRooms ? this._roomOverlay(map, rooms, dev.map) : ""}`;
+      const crop = this._mapCrop(dev, map, rooms);
+      const size = this._imageSize(map, dev.map);
+      mapHtml =
+        crop && size
+          ? `<div class="map zoomed" style="aspect-ratio:${crop.w} / ${crop.h}"><div class="map-inner" style="width:${(size[0] / crop.w) * 100}%;left:${(-crop.x / crop.w) * 100}%;top:${(-crop.y / crop.h) * 100}%">${inner}</div></div>`
+          : `<div class="map"><div class="map-inner">${inner}</div></div>`;
     } else if (dev.map) {
       mapHtml = `<div class="hint">${esc(t.no_map)}</div>`;
     }
@@ -333,12 +342,47 @@ class VacuumHubCard extends HTMLElement {
     return `<div class="section"><div class="section-title">${esc(map ? t.map : t.rooms)}</div>${mapHtml}${roomsHtml}</div>`;
   }
 
-  /** Clickable room boxes over the map, from the map extractor calibration points. */
-  _roomOverlay(map, rooms, mapId) {
+  /** Size of a map image: reported by Map Extractor v2, read from the loaded image for v3. */
+  _imageSize(map, mapId) {
+    const w = map.attributes.image_width || map.attributes.width || this._mapSize[mapId]?.[0];
+    const h = map.attributes.image_height || map.attributes.height || this._mapSize[mapId]?.[1];
+    return w && h ? [w, h] : null;
+  }
+
+  /**
+   * Part of the map image to show: the drawn area (walls and floor) found by
+   * scanning the image, else the room outlines, plus a margin. Null shows the
+   * whole image (map_zoom: false, or nothing known yet).
+   */
+  _mapCrop(dev, map, rooms) {
+    if (dev.map_zoom === false) return null;
+    const size = this._imageSize(map, dev.map);
+    if (!size) return null;
+    // Union of the drawn area and the room outlines, so no clickable room is cut
+    const parts = [this._mapContent[dev.map], ...(this._roomPixels(map, rooms, dev.map) || [])].filter(Boolean);
+    let box = null;
+    if (parts.length) {
+      const x0 = Math.min(...parts.map((r) => r.x));
+      const y0 = Math.min(...parts.map((r) => r.y));
+      const x1 = Math.max(...parts.map((r) => r.x + r.w));
+      const y1 = Math.max(...parts.map((r) => r.y + r.h));
+      box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+    }
+    if (!box || box.w <= 0 || box.h <= 0) return null;
+    const pad = Math.max(8, Math.max(box.w, box.h) * (typeof dev.map_padding === "number" ? dev.map_padding : 0.05));
+    const x = Math.max(0, box.x - pad);
+    const y = Math.max(0, box.y - pad);
+    const crop = { x, y, w: Math.min(size[0], box.x + box.w + pad) - x, h: Math.min(size[1], box.y + box.h + pad) - y };
+    // Not worth zooming when the drawn area already fills the image
+    return crop.w * crop.h > size[0] * size[1] * 0.85 ? null : crop;
+  }
+
+  /** Room boxes in map image pixels, from the Map Extractor calibration points. */
+  _roomPixels(map, rooms, mapId) {
     const cal = map.attributes.calibration_points;
-    if (!Array.isArray(cal) || cal.length < 3) return "";
+    if (!Array.isArray(cal) || cal.length < 3) return null;
     const boxes = rooms.filter((r) => r.box && ["x0", "y0", "x1", "y1"].every((k) => typeof r.box[k] === "number"));
-    if (!boxes.length) return "";
+    if (!boxes.length) return null;
     // Affine transform vacuum -> map pixels from three calibration points
     const [a, b, c] = cal;
     const solve = (axis) => {
@@ -354,24 +398,65 @@ class VacuumHubCard extends HTMLElement {
     };
     const fx = solve("x");
     const fy = solve("y");
-    if (!fx || !fy) return "";
-    // Map Extractor v2 cameras report the size; v3 image entities do not, so
-    // it is read from the loaded image (see _bind)
-    const w = map.attributes.image_width || map.attributes.width || this._mapSize[mapId]?.[0];
-    const h = map.attributes.image_height || map.attributes.height || this._mapSize[mapId]?.[1];
-    if (!w || !h) return "";
-    const rects = boxes
-      .map((r) => {
-        const xs = [fx(r.box.x0, r.box.y0), fx(r.box.x1, r.box.y1)];
-        const ys = [fy(r.box.x0, r.box.y0), fy(r.box.x1, r.box.y1)];
-        const x = Math.min(...xs);
-        const y = Math.min(...ys);
-        return `<g class="room-box ${this._selected.has(String(r.id)) ? "on" : ""}" data-room="${esc(r.id)}">
-          <rect x="${x}" y="${y}" width="${Math.abs(xs[1] - xs[0])}" height="${Math.abs(ys[1] - ys[0])}" rx="4"/>
-          <text x="${x + Math.abs(xs[1] - xs[0]) / 2}" y="${y + Math.abs(ys[1] - ys[0]) / 2}">${esc(r.name)}</text></g>`;
-      })
+    if (!fx || !fy) return null;
+    return boxes.map((r) => {
+      const xs = [fx(r.box.x0, r.box.y0), fx(r.box.x1, r.box.y1)];
+      const ys = [fy(r.box.x0, r.box.y0), fy(r.box.x1, r.box.y1)];
+      return { room: r, x: Math.min(...xs), y: Math.min(...ys), w: Math.abs(xs[1] - xs[0]), h: Math.abs(ys[1] - ys[0]) };
+    });
+  }
+
+  /** Clickable room boxes over the map. */
+  _roomOverlay(map, rooms, mapId) {
+    const size = this._imageSize(map, mapId);
+    const rects = this._roomPixels(map, rooms, mapId);
+    if (!size || !rects) return "";
+    const marks = rects
+      .map(
+        ({ room, x, y, w, h }) => `<g class="room-box ${this._selected.has(String(room.id)) ? "on" : ""}" data-room="${esc(room.id)}">
+          <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4"/>
+          <text x="${x + w / 2}" y="${y + h / 2}">${esc(room.name)}</text></g>`
+      )
       .join("");
-    return `<svg class="overlay" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${rects}</svg>`;
+    return `<svg class="overlay" viewBox="0 0 ${size[0]} ${size[1]}" preserveAspectRatio="none">${marks}</svg>`;
+  }
+
+  /**
+   * Bounding box of what is drawn on a map image: pixels that differ from the
+   * background colour found in the corners. Scanned on a small copy for speed.
+   */
+  _scanContent(img) {
+    const W = img.naturalWidth;
+    const H = img.naturalHeight;
+    const scale = Math.min(1, 320 / Math.max(W, H));
+    const w = Math.max(1, Math.round(W * scale));
+    const h = Math.max(1, Math.round(H * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const px = ctx.getImageData(0, 0, w, h).data; // throws if the image is cross-origin
+    const at = (x, y) => px.subarray((y * w + x) * 4, (y * w + x) * 4 + 4);
+    const corners = [at(0, 0), at(w - 1, 0), at(0, h - 1), at(w - 1, h - 1)];
+    const bg = corners.sort((a, b) => a[3] - b[3])[0]; // the most transparent corner, else any
+    const differs = (p) => Math.abs(p[3] - bg[3]) > 40 || (p[3] > 40 && Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]) > 48);
+    let x0 = w;
+    let y0 = h;
+    let x1 = -1;
+    let y1 = -1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (differs(at(x, y))) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0) return null;
+    return { x: x0 / scale, y: y0 / scale, w: (x1 - x0 + 1) / scale, h: (y1 - y0 + 1) / scale };
   }
 
   /* ----- events ----- */
@@ -403,11 +488,27 @@ class VacuumHubCard extends HTMLElement {
         const id = img.dataset.map;
         const size = [img.naturalWidth, img.naturalHeight];
         if (!size[0]) return;
+        let changed = false;
         const known = this._mapSize[id];
         if (!known || known[0] !== size[0] || known[1] !== size[1]) {
           this._mapSize[id] = size;
-          this._render();
+          changed = true;
         }
+        if (this._scanned[id] !== img.src) {
+          this._scanned[id] = img.src;
+          try {
+            const box = this._scanContent(img);
+            const old = this._mapContent[id];
+            const moved = (a, b) => Math.abs(a - b) > Math.max(size[0], size[1]) * 0.01;
+            if (box && (!old || moved(box.x, old.x) || moved(box.y, old.y) || moved(box.w, old.w) || moved(box.h, old.h))) {
+              this._mapContent[id] = box;
+              changed = true;
+            }
+          } catch (err) {
+            // Cross-origin image: fall back to the room outlines
+          }
+        }
+        if (changed) this._render();
       };
       img.complete ? read() : img.addEventListener("load", read, { once: true });
     });
@@ -515,6 +616,8 @@ const STYLES = `
   .hint { color:var(--muted); font-size:13px; }
   .room-actions { display:flex; gap:8px; flex-wrap:wrap; }
   .map { position:relative; border-radius:12px; overflow:hidden; background:#10141d; }
+  .map-inner { position:relative; }
+  .map.zoomed .map-inner { position:absolute; }
   .map img { width:100%; display:block; }
   .overlay { position:absolute; inset:0; width:100%; height:100%; }
   .room-box rect { fill:rgba(95,211,168,0.06); stroke:rgba(95,211,168,0.35); stroke-width:1.5; cursor:pointer; }

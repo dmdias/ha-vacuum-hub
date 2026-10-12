@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Automatic map zoom: the card shows only the drawn area of the map (walls,
+  floor and rooms) with a small margin, instead of the whole image with empty
+  space around it. Options `map_zoom` (default `true`) and `map_padding`
+  (default `0.05`)
+
 ## 0.4.0
 
 First release.

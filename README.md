@@ -48,7 +48,9 @@ connected.
   buttons a vacuum supports are shown.
 - **Suction mode**, and **device actions** such as *sweep and mop* or *mop
   only*.
-- **Live map** of each vacuum, which refreshes on its own while it cleans.
+- **Live map** of each vacuum, which refreshes on its own while it cleans
+  and zooms in automatically on the drawn area, leaving out the empty space
+  around it.
 - **Room cleaning**: tap rooms on the map (or their buttons) and clean only
   those. This runs over your local network, so it works even when the Xiaomi
   cloud does not offer it.
@@ -196,6 +198,8 @@ Per vacuum:
 | `entity` | string | required | The `vacuum.*` entity. |
 | `name` | string | entity name | Name shown in the card. |
 | `map` | string | – | Map entity: `image.*_live_map` (Map Extractor v3) or a `camera.*` (v2). |
+| `map_zoom` | boolean | `true` | Zoom in on the drawn area of the map (walls, floor and rooms). `false` shows the whole map image. |
+| `map_padding` | number | `0.05` | Margin around the zoomed area, as a fraction of its size (`0.1` = 10%). |
 | `rooms` | map | names from the map | Room names by id, e.g. `16: Kitchen`. |
 | `mode_entity` | string | found on the device | `select.*` entity used for the suction mode, when the vacuum has no fan speeds. |
 | `buttons` | list | every button of the device | `button.*` entities shown under *Actions* (for example mopping modes). |
@@ -293,6 +297,12 @@ Map Extractor refreshes the map every few seconds while the vacuum cleans,
 and less often when it is docked. Check that its *Update map* switch is on
 (enable the entity if it is disabled), and that the `image.*_live_map`
 entity updates under **Developer tools → States**.
+
+**The map is too small, or zoomed in too much**
+The card zooms in on the area of the map image that is drawn on, ignoring
+the background colour around it. Use `map_padding` to leave more margin, or
+`map_zoom: false` to show the whole image. Cropping in the Map Extractor
+options also works and is applied first.
 
 **The rooms on the map are shifted**
 The outlines are placed with the calibration points of the map image. If you

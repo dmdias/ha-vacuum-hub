@@ -28,22 +28,27 @@
       "sensor.robot_upstairs_battery_level": st("100"),
     };
     if (params.get("map")) {
-      // 400x300 map, vacuum coordinates in mm with 25000,25000 at the image centre (20 mm per pixel)
-      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'><rect width='400' height='300' fill='#1b2130'/>
-        <path d='M60 50h140v90H60z M200 50h140v120H200z M60 140h140v110H60z M200 170h140v80H200z' fill='#2e5a86' stroke='#9fb6d0' stroke-width='3'/>
-        <circle cx='120' cy='200' r='7' fill='#5fd3a8'/></svg>`;
+      // 800x600 map with the flat drawn in the middle and lots of empty space
+      // around it (like real maps), to show the automatic zoom. 20 mm per
+      // pixel, vacuum 25000,25000 at pixel 450,350.
+      const cv = document.createElement("canvas");
+      cv.width = 800; cv.height = 600;
+      const g = cv.getContext("2d");
+      g.fillStyle = "#2e5a86"; g.strokeStyle = "#9fb6d0"; g.lineWidth = 3;
+      for (const [x, y, w, h] of [[310, 250, 140, 90], [450, 250, 140, 120], [310, 340, 140, 110], [450, 370, 140, 80]]) { g.fillRect(x, y, w, h); g.strokeRect(x, y, w, h); }
+      g.fillStyle = "#5fd3a8"; g.beginPath(); g.arc(370, 400, 7, 0, 7); g.fill();
       states["camera.robot_downstairs_map"] = st("idle", {
-        entity_picture: "data:image/svg+xml;utf8," + encodeURIComponent(svg),
+        entity_picture: cv.toDataURL("image/png"),
         calibration_points: [
-          { vacuum: { x: 25000, y: 25000 }, map: { x: 200, y: 150 } },
-          { vacuum: { x: 27000, y: 25000 }, map: { x: 300, y: 150 } },
-          { vacuum: { x: 25000, y: 27000 }, map: { x: 200, y: 50 } },
+          { vacuum: { x: 25000, y: 25000 }, map: { x: 450, y: 350 } },
+          { vacuum: { x: 27000, y: 25000 }, map: { x: 550, y: 350 } },
+          { vacuum: { x: 25000, y: 27000 }, map: { x: 450, y: 250 } },
         ],
         rooms: {
-          16: { x0: 22000, y0: 25200, x1: 25000, y1: 27000, name: "Cozinha" },
-          17: { x0: 25000, y0: 24600, x1: 28000, y1: 27000, name: "Sala" },
-          18: { x0: 22000, y0: 23000, x1: 25000, y1: 25200, name: "Escritório" },
-          19: { x0: 25000, y0: 23000, x1: 28000, y1: 24600, name: "Hall" },
+          16: { x0: 22200, y0: 25200, x1: 25000, y1: 27000, name: "Cozinha" },
+          17: { x0: 25000, y0: 24600, x1: 27800, y1: 27000, name: "Sala" },
+          18: { x0: 22200, y0: 22000, x1: 25000, y1: 25200, name: "Escritório" },
+          19: { x0: 25000, y0: 22000, x1: 27800, y1: 24600, name: "Hall" },
         },
       });
     }
@@ -68,7 +73,7 @@
     host.style.width = `${params.get("width") || 640}px`;
     const card = document.createElement("vacuum-hub-card");
     const config = { vacuums: [
-      { entity: "vacuum.robot_downstairs", ...(params.get("map") ? { map: "camera.robot_downstairs_map" } : {}) },
+      { entity: "vacuum.robot_downstairs", ...(params.get("map") ? { map: "camera.robot_downstairs_map" } : {}), ...(params.get("nozoom") ? { map_zoom: false } : {}) },
       "vacuum.robot_upstairs",
     ] };
     card.setConfig(config);
