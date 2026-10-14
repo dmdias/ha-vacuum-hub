@@ -25,7 +25,7 @@
  * battery sensor) are found through the device of each vacuum.
  */
 
-const CARD_VERSION = "0.5.0";
+const CARD_VERSION = "0.5.1";
 const HUB_MODELS = /^(viomi|roborock|rockrobo)\.vacuum\./;
 
 // VacuumEntityFeature bits
@@ -625,7 +625,10 @@ const STYLES = `
   .room-box text { fill:#fff; font-size:12px; text-anchor:middle; dominant-baseline:middle; pointer-events:none; paint-order:stroke; stroke:#000; stroke-width:3px; }
 `;
 
-customElements.define("vacuum-hub-card", VacuumHubCard);
-window.customCards = window.customCards || [];
-window.customCards.push({ type: "vacuum-hub-card", name: "Vacuum Hub", description: "Several robot vacuums in one card: state, controls, mopping, map and rooms", preview: false });
+// The card can be loaded twice (dashboard resource and an older page): define it once
+if (!customElements.get("vacuum-hub-card")) {
+  customElements.define("vacuum-hub-card", VacuumHubCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({ type: "vacuum-hub-card", name: "Vacuum Hub", description: "Several robot vacuums in one card: state, controls, mopping, map and rooms", preview: false });
+}
 console.info(`%c VACUUM-HUB-CARD %c ${CARD_VERSION} `, "background:#5fd3a8;color:#000", "background:#1b2130;color:#fff");

@@ -6,13 +6,13 @@ from pathlib import Path
 
 import voluptuous as vol
 
-from homeassistant.components.frontend import add_extra_js_url, remove_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
+from .card import async_register_card, async_unregister_card
 from .const import ATTR_ROOMS, DOMAIN, FRONTEND_URL, SERVICE_CLEAN_ROOMS, VERSION
 from .rooms import clean_rooms, resolve_local_vacuum
 
@@ -38,8 +38,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             [StaticPathConfig(FRONTEND_URL, str(Path(__file__).parent / "frontend" / "vacuum-hub-card.js"), False)]
         )
         hass.data[f"{DOMAIN}_static"] = True
-    # Loaded on every dashboard, so no Lovelace resource has to be added
-    add_extra_js_url(hass, CARD_URL)
+        # A dashboard resource, added and kept up to date by the integration
+        await async_register_card(hass, FRONTEND_URL, CARD_URL)
 
     async def handle_clean_rooms(call: ServiceCall) -> None:
         entity_id: str = call.data[ATTR_ENTITY_ID]
@@ -55,5 +55,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Remove the service and stop loading the card."""
     hass.services.async_remove(DOMAIN, SERVICE_CLEAN_ROOMS)
-    remove_extra_js_url(hass, CARD_URL)
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """The integration removed: stop loading the card."""
+    if not [e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id]:
+        await async_unregister_card(hass, FRONTEND_URL, CARD_URL)

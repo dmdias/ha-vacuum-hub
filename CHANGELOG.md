@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1
+
+- The card is registered as a dashboard resource (kept up to date by the
+  integration) instead of being written into the page when it is served. It
+  no longer goes missing ("Configuration error") in the companion apps when
+  the page was opened while Home Assistant was starting
+- The card can be loaded twice without an error
+
 ## 0.5.0
 
 - Automatic map zoom: the card shows only the drawn area of the map (walls,

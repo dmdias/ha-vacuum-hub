@@ -54,8 +54,9 @@ connected.
 - **Room cleaning**: tap rooms on the map (or their buttons) and clean only
   those. This runs over your local network, so it works even when the Xiaomi
   cloud does not offer it.
-- **Nothing to register**: the integration loads the card on every dashboard
-  for you, and updates reach the browser without clearing caches.
+- **Nothing to register**: the integration adds the card to the dashboard
+  resources for you and keeps it up to date, so updates reach the browser
+  without clearing caches.
 - Portuguese and English texts, following your Home Assistant language.
 
 ## How it works
