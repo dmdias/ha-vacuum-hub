@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- Integration icon and logo (shown in HACS and in Devices & services)
+
 ## 0.5.1
 
 - The card is registered as a dashboard resource (kept up to date by the

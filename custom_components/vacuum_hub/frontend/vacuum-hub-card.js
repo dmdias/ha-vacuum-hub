@@ -25,7 +25,7 @@
  * battery sensor) are found through the device of each vacuum.
  */
 
-const CARD_VERSION = "0.5.1";
+const CARD_VERSION = "0.5.2";
 const HUB_MODELS = /^(viomi|roborock|rockrobo)\.vacuum\./;
 
 // VacuumEntityFeature bits

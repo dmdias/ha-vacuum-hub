@@ -2,7 +2,7 @@
 from typing import Final
 
 DOMAIN: Final = "vacuum_hub"
-VERSION: Final = "0.5.1"
+VERSION: Final = "0.5.2"
 
 SERVICE_CLEAN_ROOMS: Final = "clean_rooms"
 ATTR_ROOMS: Final = "rooms"
